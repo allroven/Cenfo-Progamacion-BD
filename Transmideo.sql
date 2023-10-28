@@ -666,3 +666,116 @@ DROP TABLE "VIDEO";
 
   ALTER TABLE "TEMPORADA_SERIE" ADD CONSTRAINT "TEMPORADA_SERIE_FK1" FOREIGN KEY ("SERIE_ID")
 	  REFERENCES "SERIE" ("SERIE_ID") ENABLE;
+
+
+-- REPORTS
+
+--REPORT 5
+
+CREATE OR REPLACE PROCEDURE InfoSeriesReproducidas IS
+BEGIN
+    FOR serie_rec IN (
+        SELECT
+            S.TITULO,
+            S.ANIO_INICIO,
+            S.CANT_TEMPORADAS,
+            COUNT(R.REPRODUCCION_ID) AS CANTIDAD_REPRODUCCIONES
+        FROM
+            SERIE S
+        LEFT JOIN
+            REPRODUCCIOINES R ON S.SERIE_ID = R.VIDEO_ID
+        GROUP BY
+            S.TITULO, S.ANIO_INICIO, S.CANT_TEMPORADAS
+        ORDER BY
+            S.ANIO_INICIO, S.TITULO
+    ) LOOP
+        DBMS_OUTPUT.PUT_LINE('Titulo: ' || serie_rec.TITULO || 
+                             ', Ano: ' || serie_rec.ANIO_INICIO || 
+                             ', Temporadas: ' || serie_rec.CANT_TEMPORADAS || 
+                             ', Reproducciones: ' || serie_rec.CANTIDAD_REPRODUCCIONES);
+    END LOOP;
+END;
+/
+-- REPORT 6
+
+CREATE OR REPLACE PROCEDURE InfoDocumentalesReproducidos IS
+BEGIN
+
+    FOR doc IN (SELECT s.TITULO, s.ANIO_INICIO, s.CANT_TEMPORADAS, COUNT(r.REPRODUCCION_ID) AS CANTIDAD_REPRODUCCIONES
+                FROM SERIE s
+                JOIN CLASIFICACION c ON s.CLASIFICACION_ID = c.CLASIFICACION_ID
+                LEFT JOIN REPRODUCCIOINES r ON s.SERIE_ID = r.VIDEO_ID
+                WHERE c.NOMBRE = 'DOCUMENTAL'
+                GROUP BY s.TITULO, s.ANIO_INICIO, s.CANT_TEMPORADAS
+                ORDER BY s.ANIO_INICIO, s.TITULO) 
+    LOOP
+        -- Mostrar los resultados del cursor
+        DBMS_OUTPUT.PUT_LINE('Titulo: ' || doc.TITULO);
+        DBMS_OUTPUT.PUT_LINE('Ano: ' || doc.ANIO_INICIO);
+        DBMS_OUTPUT.PUT_LINE('Cantidad de Temporadas: ' || doc.CANT_TEMPORADAS);
+        DBMS_OUTPUT.PUT_LINE('Cantidad de Reproducciones: ' || doc.CANTIDAD_REPRODUCCIONES);
+        DBMS_OUTPUT.PUT_LINE('---------------------------------------');
+    END LOOP;
+END InfoDocumentalesReproducidos;
+/
+
+
+--REPORT 7
+
+CREATE OR REPLACE PROCEDURE infoVideosDescargados AS
+BEGIN
+    FOR r IN (SELECT 'Pelicula' AS Tipo, 
+                     p.TITULO, 
+                     p.ANIO, 
+                     v.MINUTOS_DURACION, 
+                     COUNT(d.DESCRAGA_ID) AS Cantidad_Descargas, 
+                     MAX(d.FECHA_DESCARGA) AS Fecha_Ultima_Descarga
+              FROM DESCARGAS d
+              JOIN VIDEO v ON d.VIDEO_ID = v.VIDEO_ID
+              JOIN PELICULA p ON v.VIDEO_ID = p.VIDEO_ID
+              GROUP BY p.TITULO, p.ANIO, v.MINUTOS_DURACION
+              UNION
+              SELECT 'Serie' AS Tipo, 
+                     s.TITULO, 
+                     EXTRACT(YEAR FROM s.ANIO_INICIO) AS ANIO, 
+                     v.MINUTOS_DURACION, 
+                     COUNT(d.DESCRAGA_ID) AS Cantidad_Descargas, 
+                     MAX(d.FECHA_DESCARGA) AS Fecha_Ultima_Descarga
+              FROM DESCARGAS d
+              JOIN VIDEO v ON d.VIDEO_ID = v.VIDEO_ID
+              JOIN TEMPORADA_SERIE ts ON v.VIDEO_ID = ts.SERIE_ID
+              JOIN SERIE s ON ts.SERIE_ID = s.SERIE_ID
+              GROUP BY s.TITULO, EXTRACT(YEAR FROM s.ANIO_INICIO), v.MINUTOS_DURACION)
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('Tipo: ' || r.Tipo || ', Titulo: ' || r.TITULO || ', Ano: ' || r.ANIO || 
+                             ', Duracion: ' || r.MINUTOS_DURACION || ', Descargas: ' || r.Cantidad_Descargas || 
+                             ', Ultima Descarga: ' || TO_CHAR(r.Fecha_Ultima_Descarga, 'DD-MON-YYYY HH24:MI:SS'));
+    END LOOP;
+END infoVideosDescargados;
+/
+-- REPORT 8
+
+CREATE OR REPLACE PROCEDURE InfoClientes AS
+BEGIN
+    FOR r IN (SELECT c.NOMBRE || ' ' || c.APELLIDOS AS Nombre_Completo,
+                     TO_CHAR(c.FECHA_INCLUSION, 'YYYY') AS Anio_Suscripcion,
+                     COUNT(rp.REPRODUCCION_ID) AS Cantidad_Peliculas_Reproducidas,
+                     COUNT(d.DESCRAGA_ID) AS Cantidad_Total_Descargas,
+                     MAX(p.TITULO) AS Ultima_Pelicula_Reproducida,
+                     MAX(rp.FECHA_INICIO) AS Fecha_Ultima_Reproduccion
+              FROM CLIENTE c
+              LEFT JOIN REPRODUCCIOINES rp ON c.CLIENTE_ID = rp.CLIENTE_ID
+              LEFT JOIN DESCARGAS d ON c.CLIENTE_ID = d.CLIENTE_ID
+              LEFT JOIN VIDEO v ON d.VIDEO_ID = v.VIDEO_ID
+              LEFT JOIN PELICULA p ON v.VIDEO_ID = p.VIDEO_ID
+              GROUP BY c.NOMBRE, c.APELLIDOS, c.FECHA_INCLUSION)
+    LOOP
+        DBMS_OUTPUT.PUT_LINE('Nombre Completo: ' || r.Nombre_Completo || 
+                             ', Ano de Suscripcion: ' || r.Anio_Suscripcion || 
+                             ', Peliculas Reproducidas: ' || r.Cantidad_Peliculas_Reproducidas || 
+                             ', Descargas Totales: ' || r.Cantidad_Total_Descargas || 
+                             ', Ultima Pelicula Reproducida: ' || r.Ultima_Pelicula_Reproducida || 
+                             ', Fecha Ultima Reproduccion: ' || TO_CHAR(r.Fecha_Ultima_Reproduccion, 'DD-MON-YYYY HH24:MI:SS'));
+    END LOOP;
+END InfoClientes;
+/
